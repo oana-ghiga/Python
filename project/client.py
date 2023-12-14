@@ -1,65 +1,108 @@
 import pygame
 import socket
+import json
 
-HOST = '127.0.0.1'
+# Server configuration
+HOST = '127.0.0.1'  # localhost
 PORT = 3737
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect((HOST, PORT))
+srv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+srv_socket.connect((HOST, PORT))
 
+
+
+Screen_Width = 1000
+Screen_Height = 1000
+
+Black = (0, 0, 0)
+White = (255, 255, 255)
 
 pygame.init()
+screen = pygame.display.set_mode((Screen_Width, Screen_Height))
+clock = pygame.time.Clock()
 
-win = pygame.display.set_mode((500, 500))
-pygame.display.set_caption("Game Menu")
 
-# some buttons
-button_play_comp = pygame.Rect(50, 100, 200, 50)
-button_play_player = pygame.Rect(50, 200, 200, 50)
-button_rules = pygame.Rect(50, 300, 200, 50)
-button_quit = pygame.Rect(50, 400, 200, 50)
+#bkg and pieces
 
-#game loop
-running = True
-while running:
-    win.fill((255, 255, 255))  # bkg
+def display_main_menu():
+    bg_imagine = pygame.image.load('img/lobby.png')
+    screen.blit(bg_imagine, (0, 0))
 
-    # Draw buttons
-    pygame.draw.rect(win, (0, 255, 0), button_play_comp)
-    pygame.draw.rect(win, (0, 255, 0), button_play_player)
-    pygame.draw.rect(win, (0, 255, 0), button_rules)
-    pygame.draw.rect(win, (0, 255, 0), button_quit)
+def display_game():
+    bg_imagine = pygame.image.load('img/board.png')
+    screen.blit(bg_imagine, (0, 0))
 
-    # Add button text
-    font = pygame.font.Font(None, 36)
-    text_play_comp = font.render('Play against Computer', True, (0, 0, 0))
-    text_play_player = font.render('Play against Player', True, (0, 0, 0))
-    text_rules = font.render('Rules', True, (0, 0, 0))
-    text_quit = font.render('Quit', True, (0, 0, 0))
-    win.blit(text_play_comp, (button_play_comp.x + 10, button_play_comp.y + 10))
-    win.blit(text_play_player, (button_play_player.x + 25, button_play_player.y + 10))
-    win.blit(text_rules, (button_rules.x + 25, button_rules.y + 10))
-    win.blit(text_quit, (button_quit.x + 60, button_quit.y + 10))
+def display_pieces(matrix, buttons):
+    for i in range(len(buttons)):
+        if matrix[i] == 1:
+            buttons[i].image = pygame.image.load('img/black.png')
+        elif matrix[i] == 2:
+            buttons[i].image = pygame.image.load('img/white.png')
+        screen.blit(buttons[i].image, buttons[i].btn_rect)
 
-    # Event handling
+class Button:
+    def __init__(self, rect, image_path):
+        self.btn_rect = rect
+        self.image_path = image_path
+        self.image = pygame.image.load(image_path)
+        self.is_active = True
+        self.is_pressed = False
+
+    def process_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
+            if event.button == 1 and self.btn_rect.collidepoint(event.pos):
+                self.is_pressed = True
+
+    def draw(self):
+        screen.blit(self.image, self.btn_rect)
+
+# Creating buttons for the main menu
+BTN_SIZE = 62
+X_OFFSET = 200
+Y_OFFSET = 185
+x_offset = 5
+y_offset = 70  # Adjust the vertical spacing between buttons
+
+buttons = []
+button_names = ["pvp.png", "pvai.png", "rules.png", "quit.png"]
+num_buttons = len(button_names)
+button_height = BTN_SIZE + y_offset
+
+for i, button_name in enumerate(button_names):
+    rect = pygame.Rect(X_OFFSET, Y_OFFSET + i * button_height, BTN_SIZE, BTN_SIZE)
+    button = Button(rect, f"img/{button_name}")
+    buttons.append(button)
+
+# Game loop
+is_game_over = False
+matrix = [0] * 81
+
+while not is_game_over:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                # Check if buttons are clicked
-                mouse_pos = pygame.mouse.get_pos()
-                if button_play_comp.collidepoint(mouse_pos):
-                    # to add play against ai code
-                    pass
-                elif button_play_player.collidepoint(mouse_pos):
-                    # to add play against another client
-                    pass
-                elif button_rules.collidepoint(mouse_pos):
-                    # show a new screen with rules
-                    pass
-                elif button_quit.collidepoint(mouse_pos):
-                    running = False # exit game
+            is_game_over = True
 
-    pygame.display.update()
+    screen.fill(Black)
+    display_main_menu()
+
+    for button in buttons:
+        button.draw()
+
+    for button in buttons:
+        button.process_event(event)
+        if button.is_pressed:
+            if button.image_path == "img/pvai.png" or button.image_path == "img/pvp.png":
+                # Send specific message indicating the PvP or PvAI button was pressed
+                client.sendall(b'pvp_button_pressed' if button.image_path == "img/pvp.png" else b'pvai_button_pressed')
+            elif button.image_path == "img/quit.png":
+                is_game_over = True
+                pygame.quit()
+                quit()
+            elif button.image_path == "img/rules.png":
+                # Send a message indicating the Rules button was pressed
+                client.sendall(b'rules_button_pressed')
+
+    pygame.display.flip()
+    clock.tick(60)
 
 pygame.quit()
+client.close()
