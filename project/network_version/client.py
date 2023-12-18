@@ -8,8 +8,6 @@ PORT = 3737
 srv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 srv_socket.connect((HOST, PORT))
 
-
-
 Screen_Width = 1000
 Screen_Height = 1000
 
@@ -24,19 +22,19 @@ clock = pygame.time.Clock()
 #bkg and pieces
 
 def display_main_menu():
-    bg_imagine = pygame.image.load('img/lobby.png')
+    bg_imagine = pygame.image.load('../img/lobby.png')
     screen.blit(bg_imagine, (0, 0))
 
 def display_game():
-    bg_imagine = pygame.image.load('img/board.png')
+    bg_imagine = pygame.image.load('../img/board.png')
     screen.blit(bg_imagine, (0, 0))
 
 def display_pieces(matrix, buttons):
     for i in range(len(buttons)):
         if matrix[i] == 1:
-            buttons[i].image = pygame.image.load('img/black.png')
+            buttons[i].image = pygame.image.load('../img/black.png')
         elif matrix[i] == 2:
-            buttons[i].image = pygame.image.load('img/white.png')
+            buttons[i].image = pygame.image.load('../img/white.png')
         screen.blit(buttons[i].image, buttons[i].btn_rect)
 
 class Button:
