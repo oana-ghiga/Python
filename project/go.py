@@ -5,9 +5,7 @@ Screen_Height = 1000
 
 Black = (0, 0, 0)
 White = (255, 255, 255)
-
-game_state = [[0 for _ in range(9)] for _ in range(9)]
-previous_states = []
+previous_states = set()# List to store previous game states
 
 # Creating buttons for the main menu
 BTN_SIZE = 62
@@ -54,33 +52,7 @@ black_piece_image = pygame.image.load('img/black.png')
 black_piece_image = pygame.transform.scale(black_piece_image, (50, 50))
 white_piece_image = pygame.image.load('img/white.png')
 white_piece_image = pygame.transform.scale(white_piece_image, (50, 50))
-def place_black_piece(x, y, intersections, game_state):
-    closest_intersection = calculate_closest_intersection((x, y), intersections)
-    if closest_intersection:
-        row = intersections.index(closest_intersection) // 9
-        col = intersections.index(closest_intersection) % 9
-        if game_state[row][col] == 0:
-            screen.blit(black_piece_image, (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
-            game_state[row][col] = 1
-            print(f"Player 1 placed a piece at {closest_intersection}")
-        else:
-            print("Invalid position for Player 1")
-    else:
-        print("Invalid position for Player 1")
 
-def place_white_piece(x, y, intersections, game_state):
-    closest_intersection = calculate_closest_intersection((x, y), intersections)
-    if closest_intersection:
-        row = intersections.index(closest_intersection) // 9
-        col = intersections.index(closest_intersection) % 9
-        if game_state[row][col] == 0:
-            screen.blit(white_piece_image, (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
-            game_state[row][col] = 2
-            print(f"Player 2 placed a piece at {closest_intersection}")
-        else:
-            print("Invalid position for Player 2")
-    else:
-        print("Invalid position for Player 2")
 
 
 class Button:
@@ -114,7 +86,6 @@ for i, button_name in enumerate(button_names):
     button = Button(rect, f"img/{button_name}")
     buttons.append(button)
 
-
 class PassButton:
     def __init__(self, rect, image_path):
         self.btn_rect = rect
@@ -134,124 +105,256 @@ class PassButton:
     def draw(self, screen):
         screen.blit(self.image, self.btn_rect)
 
-def calculate_closest_intersection(mouse_pos, intersections):
-    # Find the closest grid intersection to the mouse position
-    min_distance = 20
-    closest_intersection = None
-    for intersection in intersections:
-        x, y = intersection
-        distance = ((mouse_pos[0] - x) ** 2 + (mouse_pos[1] - y) ** 2) ** 0.5
-        if distance < min_distance:
-            min_distance = distance
-            closest_intersection = intersection
-    return closest_intersection
+previous_move_sequences = set()
+previous_states_hashes = set()
+class GameState:
+    def __init__(self):
+        self.pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
+        self.game_state = [[0 for _ in range(9)] for _ in range(9)]
+        self.previous_states = []
+        self.moves_history = []
+        # Define pass_button and its image here
+        pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
+        self.pass_button = PassButton(pass_button_rect, "img/pass.png")
+        self.pass_button_image = pygame.image.load("img/pass.png")
+        self.pass_button_image = pygame.transform.scale(self.pass_button_image, (200, 100))
 
-def render_board(intersections, game_state):
-    for i, row in enumerate(game_state):
-        for j, val in enumerate(row):
-            if val == 1:
-                screen.blit(black_piece_image, (intersections[i * 9 + j][0] - PIECE_SIZE // 2, intersections[i * 9 + j][1] - PIECE_SIZE // 2))
-            elif val == 2:
-                screen.blit(white_piece_image, (intersections[i * 9 + j][0] - PIECE_SIZE // 2, intersections[i * 9 + j][1] - PIECE_SIZE // 2))
+    @staticmethod
+    def calculate_closest_intersection(mouse_pos, intersections):
+        # Find the closest grid intersection to the mouse position
+        min_distance = float('inf')
+        closest_intersection = None
+        for intersection in intersections:
+            x, y = intersection
+            distance = ((mouse_pos[0] - x) ** 2 + (mouse_pos[1] - y) ** 2) ** 0.5
+            if distance < min_distance:
+                min_distance = distance
+                closest_intersection = intersection
+        return closest_intersection
 
-def check_move(x, y, intersections, game_state, current_player):
-    closest_intersection = calculate_closest_intersection((x, y), intersections)
-    if closest_intersection:
-        row = intersections.index(closest_intersection) // 9
-        col = intersections.index(closest_intersection) % 9
-        if game_state[row][col] == 0:
-            return True
+    def is_valid_position(self, row, col):
+        return 0 <= row < len(self.game_state) and 0 <= col < len(self.game_state[0])
+
+    def check_move(self, x, y, intersections, current_player):
+        closest_intersection = self.calculate_closest_intersection((x, y), intersections)
+
+        if closest_intersection:
+            row = intersections.index(closest_intersection) // 9
+            col = intersections.index(closest_intersection) % 9
+
+            print(f"Checking move at ({row}, {col}) for player {current_player}")
+
+            if self.game_state[row][col] == 0:
+                print("Position is empty")
+            else:
+                print("Position is occupied")
+
+            if self.check_liberties(row, col):
+                print("There are liberties")
+            else:
+                print("No liberties")
+
+            if self.game_state[row][col] == 0 and self.check_liberties(row, col):
+                return True
+            else:
+                print("Invalid move")
+                return False
         else:
-            print("Invalid position - Already occupied")
+            print("Invalid position - Outside the board")
             return False
-    elif check_repetition(game_state):
-        print("Invalid move - Board state repeated")
-        return False
-    elif closest_intersection:
-        row = intersections.index(closest_intersection) // 9
-        col = intersections.index(closest_intersection) % 9
-        if not check_liberties(row, col, game_state):
-            print("Invalid move - No liberties")
+
+    def add_move_to_history(self, move):
+        self.moves_history.append(move)
+
+    def check_repetition(self):
+        if len(self.moves_history) < 4:  # Check repetition after at least 4 moves
             return False
-        else:
+
+        moves_subset = self.moves_history[-4:]  # Consider the latest 4 moves
+        if tuple(moves_subset) in previous_move_sequences:
+            print("Repetition in game state detected")
             return True
-    else:
-        print("Invalid position - Outside the board")
+
+        previous_move_sequences.add(tuple(moves_subset))
         return False
 
-def check_repetition(game_state):
-    current_state = tuple(map(tuple, game_state))
-    if current_state in previous_states:
-        return True
-    return False
+    def add_board_state(self):
+        state_hash = hash(str(self.game_state))
+        if state_hash in previous_states_hashes:
+            print("Repetition in game state detected2")
+            return True
 
-def add_board_state(game_state):
-    # Convert the 2D game state to a tuple and add it to the list
-    previous_states.append(tuple(map(tuple, game_state)))
+        previous_states_hashes.add(state_hash)
+        return False
 
-def check_liberties(row, col, game_state, visited=None):
-    if visited is None:
+    def check_liberties(self, row, col):
+        visited = set()
+        adjacent_positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+
+        liberties = False
+        for r, c in adjacent_positions:
+            if self.is_valid_position(r, c):
+                if self.game_state[r][c] == 0:
+                    liberties = True
+                    break
+                elif self.game_state[r][c] == self.game_state[row][col] and (r, c) not in visited:
+                    visited.add((r, c))
+                    liberties = liberties or self.check_liberties(r, c)
+
+        return liberties
+
+    def mark_territories(self):
+        territories = [[0 for _ in range(9)] for _ in range(9)]
+
+        def flood_fill(row, col, player):
+            stack = [(row, col)]
+            visited = set()
+
+            while stack:
+                x, y = stack.pop()
+                if not (0 <= x < 9) or not (0 <= y < 9) or (x, y) in visited or territories[x][y] != 0 or self.game_state[x][
+                    y] != 0:
+                    continue
+
+                visited.add((x, y))
+                territories[x][y] = player
+
+                stack.append((x + 1, y))
+                stack.append((x - 1, y))
+                stack.append((x, y + 1))
+                stack.append((x, y - 1))
+
+        for i in range(9):
+            for j in range(9):
+                if self.game_state[i][j] == 0 and territories[i][j] == 0 and self.is_valid_position(i, j):
+                    black_surrounding = any(
+                        self.game_state[i + dx][j + dy] == 1 if self.is_valid_position(i + dx, j + dy) else False
+                        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]
+                    )
+                    white_surrounding = any(
+                        self.game_state[i + dx][j + dy] == 2 if self.is_valid_position(i + dx, j + dy) else False
+                        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]
+                    )
+
+                    if black_surrounding and not white_surrounding:
+                        flood_fill(i, j, 1)
+                    elif white_surrounding and not black_surrounding:
+                        flood_fill(i, j, 2)
+        return territories
+
+    def check_liberties_after_move(self, x, y, current_player, territories):
+        opposite_player = 2 if current_player == 1 else 1
         visited = set()
 
-    if (row, col) in visited:
-        return False
+        def check_liberties_recursive(row, col, player):
+            if not self.is_valid_position(row, col) or (row, col) in visited:
+                return set()
 
-    visited.add((row, col))
-    adjacent_positions = [(row-1, col), (row+1, col), (row, col-1), (row, col+1)]
-    liberties = False
+            visited.add((row, col))
+            captured = {(row, col)}
 
-    for r, c in adjacent_positions:
-        if 0 <= r < len(game_state) and 0 <= c < len(game_state[0]):
-            if game_state[r][c] == 0:
-                liberties = True
-                break  # If an empty adjacent position is found, the stone has liberties
-            elif game_state[r][c] == game_state[row][col]:
-                liberties = liberties or check_liberties(r, c, game_state, visited)
+            for r, c in [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]:
+                captured |= check_liberties_recursive(r, c, player) if self.is_valid_position(r, c) and \
+                                                                       self.game_state[r][c] == player else set()
 
-    return liberties
+            return captured
+
+        captured_stones = set()
+        for i in range(len(self.game_state)):
+            for j in range(len(self.game_state[0])):
+                if self.game_state[i][j] == opposite_player:
+                    surrounded = check_liberties_recursive(i, j, opposite_player)
+                    captured_stones |= surrounded
+
+        for stone_row, stone_col in captured_stones:
+            self.game_state[stone_row][stone_col] = 0
+
+        territories = self.mark_territories()
+        return self.game_state, territories
+
+    def place_black_piece(self, x, y, intersections):
+        closest_intersection = self.calculate_closest_intersection((x, y), intersections)
+
+        if closest_intersection:
+            row = intersections.index(closest_intersection) // 9
+            col = intersections.index(closest_intersection) % 9
+
+            if self.game_state[row][col] == 0 and self.check_liberties(row, col):
+                screen.blit(black_piece_image, (x - PIECE_SIZE // 2, y - PIECE_SIZE // 2))
+                self.game_state[row][col] = 1  # Set the grid position to represent a black piece
+                self.add_board_state()  # Add the current state to the set of previous states
+                self.add_move_to_history((x, y))  # Add the current move to the history
+                return True
+            else:
+                print("Invalid move")
+                return False
+        else:
+            print("Invalid position - Outside the board")
+            return False
+
+    def place_white_piece(self, x, y, intersections):
+        closest_intersection = self.calculate_closest_intersection((x, y), intersections)
+
+        if closest_intersection:
+            row = intersections.index(closest_intersection) // 9
+            col = intersections.index(closest_intersection) % 9
+
+            if self.game_state[row][col] == 0 and self.check_liberties(row, col):
+                screen.blit(white_piece_image, (x - PIECE_SIZE // 2, y - PIECE_SIZE // 2))
+                self.game_state[row][col] = 2  # Set the grid position to represent a white piece
+                self.add_board_state()  # Add the current state to the set of previous states
+                self.add_move_to_history((x, y))  # Add the current move to the history
+                return True
+            else:
+                print("Invalid move")
+                return False
+        else:
+            print("Invalid position - Outside the board")
+            return False
+
+    def render_board(self, intersections):
+        # Draw the board
+        screen.blit(board_image, (0, 0))
+
+        # Draw the stones
+        for i in range(len(self.game_state)):
+            for j in range(len(self.game_state[0])):
+                if self.game_state[i][j] == 1:
+                    x, y = intersections[i * 9 + j]
+                    screen.blit(black_piece_image, (x - PIECE_SIZE // 2, y - PIECE_SIZE // 2))
+                elif self.game_state[i][j] == 2:
+                    x, y = intersections[i * 9 + j]
+                    screen.blit(white_piece_image, (x - PIECE_SIZE // 2, y - PIECE_SIZE // 2))
+
+        # Draw the pass button
+        screen.blit(self.pass_button_image, self.pass_button_rect)
+        pygame.display.flip()
 
 
 def main():
-    pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
-    pass_button_image = pygame.image.load("img/pass.png")
-    pass_button_image = pygame.transform.scale(pass_button_image, (200, 100))
-    pass_button = PassButton(pass_button_rect, "img/pass.png")
+    game_state = GameState()
     is_game_over = False
     current_player = 1
     background = lobby_image
     consecutive_passes = [0, 0]
 
     while not is_game_over:
-
-        # Display the background image
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 is_game_over = True
-            if background == board_image and pass_button.process_event(event):
+            if background == board_image and game_state.pass_button.process_event(event):
                 consecutive_passes[current_player - 1] += 1
-                print(f"Current player {current_player} passed")
-
-                # Check if both players passed consecutively
                 if consecutive_passes[0] >= 2 or consecutive_passes[1] >= 2:
                     is_game_over = True
                     background = lobby_image
-                    print("Both players passed consecutively twice. Game over!")
-
-                # Switch player if both players haven't passed consecutively twice
                 if consecutive_passes[0] < 2 and consecutive_passes[1] < 2:
-                    if current_player == 1:
-                        current_player = 2
-                    else:
-                        current_player = 1
-                    print(f"Current player switched to {current_player}")
+                    current_player = 2 if current_player == 1 else 1
 
-                # Reset the consecutive pass count for the current player if they made a move
-                if check_move(x, y, specific_intersections, game_state, current_player):
-                    consecutive_passes = [0,0]
+                    if game_state.check_move(x, y, specific_intersections, current_player):
+                        consecutive_passes = [0, 0]
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-                print(f"Mouse position at {mouse_pos}")
                 if background == lobby_image:
                     for button in buttons:
                         if button.btn_rect.collidepoint(mouse_pos) and button.is_active:
@@ -270,20 +373,29 @@ def main():
                 elif background == rules_go_image:
                     background = lobby_image
                 elif background == board_image:
-                    screen.blit(pass_button_image, pass_button_rect)
-                    pygame.display.flip()
-                    closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
+                    closest_intersection = game_state.calculate_closest_intersection(mouse_pos, specific_intersections)
+
                     if closest_intersection:
                         x, y = closest_intersection
-                        valid_move = check_move(x, y, specific_intersections, game_state, current_player)
-                        if valid_move:
+                        if game_state.check_move(x, y, specific_intersections, current_player):
                             if current_player == 1:
-                                place_black_piece(x, y, specific_intersections, game_state)
-                                current_player = 2
+                                game_state.place_black_piece(x, y, specific_intersections)
+                                print("placed black piece at", x, y, "for player", current_player)
                             else:
-                                place_white_piece(x, y, specific_intersections, game_state)
-                                current_player = 1
-                            render_board(specific_intersections, game_state)
+                                game_state.place_white_piece(x, y, specific_intersections)
+                                print("placed white piece at", x, y, "for player", current_player)
+
+                            # Update the moves history after making a move
+                            game_state.add_move_to_history((x, y))
+
+                            # Check for repetition after updating the moves history
+                            if game_state.check_repetition():
+                                print("Invalid move: Repetition detected")
+
+                            game_state.game_state, territories = game_state.check_liberties_after_move(
+                                x, y, current_player, game_state.game_state)
+                            current_player = 2 if current_player == 1 else 1
+
 
         # Display and handle button clicks only in the lobby
         if background == lobby_image:
