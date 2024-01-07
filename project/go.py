@@ -460,8 +460,8 @@ def main():
                     else:
                         current_player = 1
                     print(f"Current player switched to {current_player}")
-                if game_logic.place_piece(x, y, specific_intersections, game_state, current_player):
-                    consecutive_passes = [0, 0]
+                # if game_logic.place_piece(x, y, specific_intersections, game_state, current_player):
+                #     consecutive_passes = [0, 0]
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
@@ -502,6 +502,8 @@ def main():
             screen.blit(background, (0, 0))
             for button in buttons:
                 button.draw()
+        elif background == board_image:
+            pass_button.draw(screen)
 
         pygame.display.flip()
         clock.tick(60)
