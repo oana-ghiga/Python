@@ -116,6 +116,10 @@ black_piece_image = pygame.image.load('img/black.png')
 black_piece_image = pygame.transform.scale(black_piece_image, (50, 50))
 white_piece_image = pygame.image.load('img/white.png')
 white_piece_image = pygame.transform.scale(white_piece_image, (50, 50))
+black_won=pygame.image.load('img/black_won.png')
+black_won=pygame.transform.scale(black_won, (Screen_Width, Screen_Height))
+white_won=pygame.image.load('img/white_won.png')
+white_won=pygame.transform.scale(white_won, (Screen_Width, Screen_Height))
 
 
 def insert_stone(row, col, player):
@@ -326,6 +330,12 @@ def render_board(intersections: list[tuple[int, int]], game_state: list[list[int
     Returns:
         None
     """
+
+    pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
+    pass_button_image = pygame.image.load("img/pass.png")
+    pass_button_image = pygame.transform.scale(pass_button_image, (200, 100))
+    screen.blit(board_image, (0, 0))
+    screen.blit(pass_button_image, pass_button_rect)
     for i, row in enumerate(game_state):
         for j, val in enumerate(row):
             if val == 1:
@@ -398,6 +408,90 @@ def check_liberties(row, col, game_state):
         if (row, col) in group:
             return group.compute_liberties(game_state) > 0
 
+def capture_stones(x, y, intersections):
+    global game_state
+    global groups
+    row = intersections.index((x, y)) // 9
+    col = intersections.index((x, y)) % 9
+    opponent = 2 if game_state[row][col] == 1 else 1
+    adjacent_positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+
+    for r, c in adjacent_positions:
+        if r < 0 or r >= len(game_state) or c < 0 or c >= len(game_state[0]):
+            continue
+        if game_state[r][c] == opponent:
+            for group in groups:
+                if (r, c) in group and group.owner == opponent:
+                    if group.compute_liberties(game_state) == 0:
+                        print(f"Player {opponent} lost a group: {group.stones}")
+                        for stone in group.stones:
+                            stone_row, stone_col = stone
+                            print(f"Removing stone at ({stone_row}, {stone_col})")
+                            game_state[stone_row][stone_col] = 0
+                        groups.remove(group)
+                        print(f"Player {opponent} lost a group")
+                    break
+
+def calculate_score(game_state):
+    """
+    Calculates the score of each player. The score is the number of free intersections
+    surrounded by the player's stones. If there's an opponent's stone in that area,
+    the free intersection is not counted. The score is calculated for each player
+    separately at the end of the game.
+
+    Args:
+        game_state: The matrix representing the current state of the game
+
+    Returns:
+        score: A tuple containing the score of each player
+    """
+
+    def is_valid(row, col):
+        return 0 <= row < len(game_state) and 0 <= col < len(game_state[0])
+
+    def dfs(row, col, visited, player_stone):
+        if not is_valid(row, col) or visited[row][col] or game_state[row][col] != player_stone:
+            return 0
+
+        visited[row][col] = True
+        count = 1
+
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        for dr, dc in directions:
+            count += dfs(row + dr, col + dc, visited, player_stone)
+
+        return count
+
+    player_scores = [0, 0]  # Player 1 score, Player 2 score
+
+    for player in [1, 2]:
+        visited = [[False for _ in range(len(game_state[0]))] for _ in range(len(game_state))]
+        for i in range(len(game_state)):
+            for j in range(len(game_state[0])):
+                if game_state[i][j] == player and not visited[i][j]:
+                    player_scores[player - 1] += dfs(i, j, visited, player)
+
+    return tuple(player_scores)
+
+def render_scores(screen, game_state):
+    """
+    Renders the scores for both players on the screen.
+
+    Args:
+        screen: Pygame screen object to render on
+        font: Pygame font object to render text
+        game_state: The matrix representing the current state of the game
+
+    Returns:
+        None
+    """
+    font=pygame.font.Font('freesansbold.ttf', 32)
+    black_score, white_score = calculate_score(game_state)
+    white_text = font.render(f"{white_score}", True, (255, 255, 255))
+    black_text = font.render(f"{black_score}", True, (0, 0, 0))
+    screen.blit(white_text, (95, 685))
+    screen.blit(black_text, (900, 685))
+
 
 def main():
     pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
@@ -421,11 +515,16 @@ def main():
 
                 # Check if both players passed consecutively
                 if consecutive_passes[0] >= 2 or consecutive_passes[1] >= 2:
-                    is_game_over = True
-                    background = lobby_image
-                    print("Both players passed consecutively twice. Game over!")
+                    black_score, white_score = calculate_score(game_state)
+                    if black_score > white_score:
+                        background = black_won
+                        print("Black player won!")
+                    else:
+                        background = white_won
+                        print("White player won!")
 
-                # Switch player if both players haven't passed consecutively twice
+                    print("Game over!")
+                    screen.blit(background, (0, 0))
                 if consecutive_passes[0] < 2 and consecutive_passes[1] < 2:
                     if current_player == 1:
                         current_player = 2
@@ -444,11 +543,11 @@ def main():
                     for button in buttons:
                         if button.btn_rect.collidepoint(mouse_pos) and button.is_active:
                             if button.image_path in ["img/pvai.png", "img/pvp.png"]:
-                                background = board_image  # Switch background to game board
+                                background = board_image
                                 screen.blit(background, (0, 0))
 
                             elif button.image_path == "img/rules.png":
-                                background = rules_go_image  # Switch background to rules screen
+                                background = rules_go_image
                                 screen.blit(background, (0, 0))
 
                             elif button.image_path == "img/quit.png":
@@ -471,9 +570,11 @@ def main():
                             else:
                                 place_white_piece(x, y, specific_intersections, game_state)
                                 current_player = 1
+                            capture_stones(x, y, specific_intersections)
                             print_groups()
                             previous_states.append(copy_game_state(game_state))
                             render_board(specific_intersections, game_state)
+                            render_scores(screen, game_state)
 
         # Display and handle button clicks only in the lobby
         if background == lobby_image:
