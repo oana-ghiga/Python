@@ -1,5 +1,7 @@
 import pygame
+import random
 
+pygame.init()
 Screen_Width = 1000
 Screen_Height = 1000
 
@@ -27,6 +29,26 @@ grid_size_y = 9
 initial_point = (231, 214)
 cell_width = 67
 cell_height = 67
+
+# Define the size of the screen and clock object
+screen = pygame.display.set_mode((Screen_Width, Screen_Height))
+clock = pygame.time.Clock()
+
+# Load and scale the images
+lobby_image = pygame.image.load('img/lobby.png')
+lobby_image = pygame.transform.scale(lobby_image, (Screen_Width, Screen_Height))
+board_image = pygame.image.load('img/board.png')
+board_image = pygame.transform.scale(board_image, (Screen_Width, Screen_Height))
+rules_go_image = pygame.image.load('img/rules_go.png')
+rules_go_image = pygame.transform.scale(rules_go_image, (Screen_Width, Screen_Height))
+black_piece_image = pygame.image.load('img/black.png')
+black_piece_image = pygame.transform.scale(black_piece_image, (50, 50))
+white_piece_image = pygame.image.load('img/white.png')
+white_piece_image = pygame.transform.scale(white_piece_image, (50, 50))
+black_won=pygame.image.load('img/black_won.png')
+black_won=pygame.transform.scale(black_won, (Screen_Width, Screen_Height))
+white_won=pygame.image.load('img/white_won.png')
+white_won=pygame.transform.scale(white_won, (Screen_Width, Screen_Height))
 
 
 def compare(game_state1: list[list[int]], game_state2: list[list[int]]) -> bool:
@@ -74,8 +96,6 @@ def copy_game_state(game_state) -> list[list[int]]:
         new_game_state.append(row[:])
     return new_game_state
 
-
-# Generate the 81 intersections
 def generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height) -> list[tuple[int, int]]:
     """
     Generates the 81 intersections of the game board.
@@ -99,28 +119,8 @@ def generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, 
 
     return intersections
 
-
 # Generate the specific 81 intersections
 specific_intersections = generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height)
-
-pygame.init()
-screen = pygame.display.set_mode((Screen_Width, Screen_Height))
-clock = pygame.time.Clock()
-lobby_image = pygame.image.load('img/lobby.png')
-lobby_image = pygame.transform.scale(lobby_image, (Screen_Width, Screen_Height))
-board_image = pygame.image.load('img/board.png')
-board_image = pygame.transform.scale(board_image, (Screen_Width, Screen_Height))
-rules_go_image = pygame.image.load('img/rules_go.png')
-rules_go_image = pygame.transform.scale(rules_go_image, (Screen_Width, Screen_Height))
-black_piece_image = pygame.image.load('img/black.png')
-black_piece_image = pygame.transform.scale(black_piece_image, (50, 50))
-white_piece_image = pygame.image.load('img/white.png')
-white_piece_image = pygame.transform.scale(white_piece_image, (50, 50))
-black_won=pygame.image.load('img/black_won.png')
-black_won=pygame.transform.scale(black_won, (Screen_Width, Screen_Height))
-white_won=pygame.image.load('img/white_won.png')
-white_won=pygame.transform.scale(white_won, (Screen_Width, Screen_Height))
-
 
 def insert_stone(row, col, player):
     """
@@ -153,8 +153,8 @@ def place_black_piece(x, y, intersections, game_state):
     Args:
         x: x coordinate of the mouse position
         y: y coordinate of the mouse position
-        intersections:
-        game_state:
+        intersections: list of all 81 intersections
+        game_state: matrix of the current game state
 
     Returns:
 
@@ -189,8 +189,7 @@ def place_white_piece(x, y, intersections, game_state):
     else:
         print("Invalid position for Player 2")
 
-
-class Button:
+class PassButton:
     def __init__(self, rect, image_path):
         self.btn_rect = rect
         self.image_path = image_path
@@ -199,6 +198,36 @@ class Button:
         self.is_pressed = False
 
     def process_event(self, event):
+        """
+        Signals if the pass button is clicked.
+        :param event: the event to be processed
+        :return: False if the pass button is not clicked, True otherwise
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
+            mouse_pos = pygame.mouse.get_pos()
+            if self.btn_rect.collidepoint(mouse_pos):
+                self.is_pressed = True
+                return True
+        return False
+
+    def draw(self, screen):
+        screen.blit(self.image, self.btn_rect)
+
+class Button:
+    ''' A button class that can be used to create buttons'''
+    def __init__(self, rect, image_path):
+        self.btn_rect = rect
+        self.image_path = image_path
+        self.image = pygame.image.load(image_path)
+        self.is_active = True
+        self.is_pressed = False
+
+    def process_event(self, event):
+        """
+        Processes the event.
+        Args:
+            event: the event to be processed
+        """
         if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
             if event.button == 1 and self.btn_rect.collidepoint(event.pos):
                 self.is_pressed = True
@@ -263,6 +292,12 @@ class Group:
         return liberties
 
     def copy(self):
+        """ Creates a deep copy of the current group
+        Args:
+            None
+        Returns:
+            new_group: a deep copy of the current group
+        """
         new_stones = self.stones[:]
         return Group(self.owner, new_stones)
 
@@ -277,27 +312,6 @@ def print_groups():
     for group in groups:
         print(group)
     print('*' * 10)
-
-
-class PassButton:
-    def __init__(self, rect, image_path):
-        self.btn_rect = rect
-        self.image_path = image_path
-        self.image = pygame.image.load(image_path)
-        self.is_active = True
-        self.is_pressed = False
-
-    def process_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
-            mouse_pos = pygame.mouse.get_pos()
-            if self.btn_rect.collidepoint(mouse_pos):
-                self.is_pressed = True
-                return True  # Signal that the pass button is clicked
-        return False
-
-    def draw(self, screen):
-        screen.blit(self.image, self.btn_rect)
-
 
 def calculate_closest_intersection(mouse_pos: tuple[int, int], intersections: list[tuple[int, int]]) -> tuple[int, int]:
     """
@@ -349,23 +363,19 @@ def render_board(intersections: list[tuple[int, int]], game_state: list[list[int
 def check_move(x, y, intersections, current_player) -> bool:
     """
     Checks if the move is valid.
+    ko rule:
+            if the move we want to make can't be found in the history of states
+    rule of liberty:
+            and the move we want to make does not make the current player lose a group
     Args:
-        x:
-        y:
-        intersections:
-        game_state:
-        current_player:
+        x: x coordinate of the mouse position
+        y: y coordinate of the mouse position
+        intersections: list of all 81 intersections
+        game_state: matrix of the current game state
+        current_player: the player who wants to make the move
 
     Returns:
         True if the move is valid, False otherwise
-    """
-
-    """
-        ko rule:
-            if the move we want to make can't be found in the history of states
-        rule of liberty:
-            and the move we want to make does not make the current player lose a group
-        
     """
     global game_state
     closest_intersection = calculate_closest_intersection((x, y), intersections)
@@ -387,12 +397,20 @@ def check_move(x, y, intersections, current_player) -> bool:
     insert_stone(row, col, current_player)
 
     if was_seen_before(game_state):
+        """
+        If the move we want to make can be found in the history of states
+        we restore the previous state and return False
+        """
         print("Invalid move - Board state repeated")
         groups = groups_copy
         game_state = game_state_copy
         return False
 
     if not check_liberties(row, col, game_state):
+        """
+        If the move we want to make makes the current player lose a group
+        we restore the previous state and return False
+        """
         print("Invalid move - No liberties")
         groups = groups_copy
         game_state = game_state_copy
@@ -403,12 +421,25 @@ def check_move(x, y, intersections, current_player) -> bool:
 
 
 def check_liberties(row, col, game_state):
+    """
+    Checks if the move we want to make makes the current player lose a group.
+    :param row: the row (in the matrix) where the stone is to be inserted
+    :param col:  the column (in the matrix) where the stone is to be inserted
+    :param game_state: the matrix representing the current state of the game
+    :return: true if the liberties of the group the stone belongs to is greater than 0, false otherwise
+    """
     print("Checking liberties")
     for group in groups:
         if (row, col) in group:
             return group.compute_liberties(game_state) > 0
 
 def capture_stones(x, y, intersections):
+    """
+    Captures the stones of the opponent if the move we want to make makes the opponent lose a group.
+    :param x: the x coordinate of the mouse position
+    :param y: the y coordinate of the mouse position
+    :param intersections: the list of all 81 intersections
+    """
     global game_state
     global groups
     row = intersections.index((x, y)) // 9
@@ -436,8 +467,7 @@ def calculate_score(game_state):
     """
     Calculates the score of each player. The score is the number of free intersections
     surrounded by the player's stones. If there's an opponent's stone in that area,
-    the free intersection is not counted. The score is calculated for each player
-    separately at the end of the game.
+    the free intersection is not counted.
 
     Args:
         game_state: The matrix representing the current state of the game
@@ -534,8 +564,55 @@ def render_scores(screen, game_state):
     screen.blit(white_text, (95, 685))
     screen.blit(black_text, (900, 685))
 
+is_PVP=False
+is_PVAI=False
+def start_PVP():
+    global is_PVP
+    global is_PVAI
+    is_PVP=True
+    is_PVAI=False
+
+def start_PVAI():
+    global is_PVP
+    global is_PVAI
+    is_PVP=False
+    is_PVAI=True
+
+is_ai_turn = False
+
+def handle_AI_move(current_player):
+    """
+    The AI makes a move randomly, but according to the rules. There's a list of moves that are valid for the AI and it choses a random one from there.
+
+    Args:
+        current_player: the current player
+
+    Returns:
+        None
+
+    """
+    available_moves = []  # Store available moves
+
+    if current_player == 2:
+        # Generate a list of available moves (valid moves for AI)
+        for intersection in specific_intersections:
+            x, y = intersection
+            if check_move(x, y, specific_intersections, 2):
+                available_moves.append((x, y))
+
+        if available_moves:
+            # Randomly select a move from available valid moves
+            random_move = random.choice(available_moves)
+            x, y = random_move
+            # Make the AI move
+            place_white_piece(x, y, specific_intersections, game_state)
+        else:
+            print("AI passed")
+            current_player = 1
 
 def main():
+
+    global is_ai_turn
     pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
     pass_button_image = pygame.image.load("img/pass.png")
     pass_button_image = pygame.transform.scale(pass_button_image, (200, 100))
@@ -573,8 +650,6 @@ def main():
                     else:
                         current_player = 1
                     print(f"Current player switched to {current_player}")
-
-                # Reset the consecutive pass count for the current player if they made a move
                 if check_move(x, y, specific_intersections, current_player):
                     consecutive_passes = [0, 0]
 
@@ -584,9 +659,14 @@ def main():
                 if background == lobby_image:
                     for button in buttons:
                         if button.btn_rect.collidepoint(mouse_pos) and button.is_active:
-                            if button.image_path in ["img/pvai.png", "img/pvp.png"]:
+                            if button.image_path in "img/pvai.png":
                                 background = board_image
                                 screen.blit(background, (0, 0))
+                                start_PVAI()
+                            elif button.image_path in "img/pvp.png":
+                                background = board_image
+                                screen.blit(background, (0, 0))
+                                start_PVP()
 
                             elif button.image_path == "img/rules.png":
                                 background = rules_go_image
@@ -598,7 +678,7 @@ def main():
                                 quit()
                 elif background == rules_go_image:
                     background = lobby_image
-                elif background == board_image:
+                if is_PVP:
                     screen.blit(pass_button_image, pass_button_rect)
                     pygame.display.flip()
                     closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
@@ -617,6 +697,31 @@ def main():
                             previous_states.append(copy_game_state(game_state))
                             render_board(specific_intersections, game_state)
                             render_scores(screen, game_state)
+                elif is_PVAI:
+                    screen.blit(pass_button_image, pass_button_rect)
+                    pygame.display.flip()
+                    closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
+                    if closest_intersection:
+                        x, y = closest_intersection
+                        valid_move = check_move(x, y, specific_intersections, current_player)
+                        if valid_move:
+                            if current_player == 1:
+                                place_black_piece(x, y, specific_intersections, game_state)
+                                current_player = 2
+                                is_ai_turn = True
+                            # AI move
+                            if is_ai_turn:
+                                print("AI move")
+                                handle_AI_move(current_player)
+                                is_ai_turn = False
+                                current_player = 1
+
+                            capture_stones(x, y, specific_intersections)
+                            print_groups()
+                            previous_states.append(copy_game_state(game_state))
+                            render_board(specific_intersections, game_state)
+                            render_scores(screen, game_state)
+
 
         # Display and handle button clicks only in the lobby
         if background == lobby_image:
