@@ -40,7 +40,6 @@ def generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, 
 
     return intersections
 
-# Generate the specific 81 intersections
 specific_intersections = generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height)
 
 pygame.init()
@@ -57,35 +56,6 @@ black_piece_image = pygame.transform.scale(black_piece_image, (50, 50))
 white_piece_image = pygame.image.load('img/white.png')
 white_piece_image = pygame.transform.scale(white_piece_image, (50, 50))
 
-# def place_black_piece(x, y, intersections, game_state):
-#     closest_intersection = calculate_closest_intersection((x, y), intersections)
-#     if closest_intersection:
-#         row = intersections.index(closest_intersection) // 9
-#         col = intersections.index(closest_intersection) % 9
-#         if game_state[row][col] == 0:
-#             screen.blit(black_piece_image, (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
-#             game_state[row][col] = 1  # Set 1 for black piece
-#             add_board_state(game_state)  # Add the current game state to previous_states
-#             print(f"Player 1 placed a piece at {closest_intersection}")
-#         else:
-#             print("Invalid position for Player 1")
-#     else:
-#         print("Invalid position for Player 1")
-#
-# def place_white_piece(x, y, intersections, game_state):
-#     closest_intersection = calculate_closest_intersection((x, y), intersections)
-#     if closest_intersection:
-#         row = intersections.index(closest_intersection) // 9
-#         col = intersections.index(closest_intersection) % 9
-#         if game_state[row][col] == 0:
-#             screen.blit(white_piece_image, (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
-#             game_state[row][col] = 2  # Set 2 for white piece
-#             add_board_state(game_state)  # Add the current game state to previous_states
-#             print(f"Player 2 placed a piece at {closest_intersection}")
-#         else:
-#             print("Invalid position for Player 2")
-#     else:
-#         print("Invalid position for Player 2")
 
 def add_board_state(game_state):
     previous_states.append(np.array(game_state))
@@ -368,11 +338,9 @@ class CheckMove(object):
                         self.endangered_groups.append(group)
         self.libertydict.remove_point(color, point)
 
-    def place_piece(x, y, intersections, game_state, player):
-        closest_intersection = calculate_closest_intersection((x, y), intersections)
+    def place_piece(self, closest_intersection, game_state, player):
         if closest_intersection:
-            row = intersections.index(closest_intersection) // 9
-            col = intersections.index(closest_intersection) % 9
+            row,col=closest_intersection
             if game_state[row][col] == 0:
                 if player == 1:
                     screen.blit(black_piece_image,
@@ -404,13 +372,8 @@ class CheckMove(object):
             print('Error: illegal move, try again.')
             return False
 
-        if self.counter_move > 400:
-            print(self)
-            raise RuntimeError('More than 400 moves in one game! Board is printed.')
-
         self_belonging_groups = self.libertydict.get_groups(self.next, point).copy()
         self.shorten_liberty_for_groups(point, self.next)
-        self.counter_move += 1
 
         if self.winner:
             self.next = 'WHITE' if self.next == 'BLACK' else 'BLACK'
@@ -488,15 +451,17 @@ def main():
                         mouse_pos = pygame.mouse.get_pos()
                         closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
                         if closest_intersection:
-                            x, y = closest_intersection
-                            valid_move = game_logic.place_piece(x, y, specific_intersections, game_state, current_player)
+                            matrix_row = specific_intersections.index(closest_intersection) // 9
+                            matrix_col = specific_intersections.index(closest_intersection) % 9
+                            matrix_pos = (matrix_row, matrix_col)
+                            valid_move = game_logic.place_piece(matrix_pos, game_state, current_player)
                             if valid_move:
                                 render_board(specific_intersections, game_state)
                                 if current_player == 1:
                                     current_player = 2
                                 else:
                                     current_player = 1
-                                # render_board(specific_intersections, game_state)
+                                render_board(specific_intersections, game_state)
         # Display and handle button clicks only in the lobby
         if background == lobby_image:
             screen.blit(background, (0, 0))
