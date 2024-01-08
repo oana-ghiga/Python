@@ -472,6 +472,48 @@ def calculate_score(game_state):
                     player_scores[player - 1] += dfs(i, j, visited, player)
 
     return tuple(player_scores)
+# def calculate_score(game_state):
+#     def is_valid(row, col):
+#         return 0 <= row < len(game_state) and 0 <= col < len(game_state[0])
+#
+#     def dfs(row, col, visited, player_stone, enclosed_area):
+#         if not is_valid(row, col) or visited[row][col] or game_state[row][col] != player_stone:
+#             return False
+#
+#         visited[row][col] = True
+#         enclosed_area.add((row, col))
+#
+#         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+#         is_surrounded = True
+#         for dr, dc in directions:
+#             next_row, next_col = row + dr, col + dc
+#             if not is_valid(next_row, next_col):
+#                 is_surrounded = False
+#                 continue
+#             if game_state[next_row][next_col] == 0:
+#                 is_surrounded = False
+#             else:
+#                 is_surrounded &= dfs(next_row, next_col, visited, player_stone, enclosed_area)
+#
+#         return is_surrounded
+#
+#     def count_free_intersections(player):
+#         visited = [[False for _ in range(len(game_state[0]))] for _ in range(len(game_state))]
+#         free_intersections = 0
+#
+#         for i in range(len(game_state)):
+#             for j in range(len(game_state[0])):
+#                 if game_state[i][j] == player and not visited[i][j]:
+#                     enclosed_area = set()
+#                     if dfs(i, j, visited, player, enclosed_area):
+#                         free_intersections += len(enclosed_area)
+#
+#         return free_intersections
+#
+#     player_scores = [count_free_intersections(1), count_free_intersections(2)]
+#     return tuple(player_scores)
+
+
 
 def render_scores(screen, game_state):
     """
