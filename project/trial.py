@@ -463,87 +463,96 @@ def capture_stones(x, y, intersections):
                         print(f"Player {opponent} lost a group")
                     break
 
-def calculate_score(game_state):
-    """
-    Calculates the score of each player. The score is the number of free intersections
-    surrounded by the player's stones. If there's an opponent's stone in that area,
-    the free intersection is not counted.
-
-    Args:
-        game_state: The matrix representing the current state of the game
-
-    Returns:
-        score: A tuple containing the score of each player
-    """
-
-    def is_valid(row, col):
-        return 0 <= row < len(game_state) and 0 <= col < len(game_state[0])
-
-    def dfs(row, col, visited, player_stone):
-        if not is_valid(row, col) or visited[row][col] or game_state[row][col] != player_stone:
-            return 0
-
-        visited[row][col] = True
-        count = 1
-
-        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
-        for dr, dc in directions:
-            count += dfs(row + dr, col + dc, visited, player_stone)
-
-        return count
-
-    player_scores = [0, 0]  # Player 1 score, Player 2 score
-
-    for player in [1, 2]:
-        visited = [[False for _ in range(len(game_state[0]))] for _ in range(len(game_state))]
-        for i in range(len(game_state)):
-            for j in range(len(game_state[0])):
-                if game_state[i][j] == player and not visited[i][j]:
-                    player_scores[player - 1] += dfs(i, j, visited, player)
-
-    return tuple(player_scores)
 # def calculate_score(game_state):
+#     """
+#     Calculates the score of each player. The score is the number of free intersections
+#     surrounded by the player's stones. If there's an opponent's stone in that area,
+#     the free intersection is not counted.
+#
+#     Args:
+#         game_state: The matrix representing the current state of the game
+#
+#     Returns:
+#         score: A tuple containing the score of each player
+#     """
+#
 #     def is_valid(row, col):
 #         return 0 <= row < len(game_state) and 0 <= col < len(game_state[0])
 #
-#     def dfs(row, col, visited, player_stone, enclosed_area):
+#     def dfs(row, col, visited, player_stone):
 #         if not is_valid(row, col) or visited[row][col] or game_state[row][col] != player_stone:
-#             return False
+#             return 0
 #
 #         visited[row][col] = True
-#         enclosed_area.add((row, col))
+#         count = 1
 #
 #         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
-#         is_surrounded = True
 #         for dr, dc in directions:
-#             next_row, next_col = row + dr, col + dc
-#             if not is_valid(next_row, next_col):
-#                 is_surrounded = False
-#                 continue
-#             if game_state[next_row][next_col] == 0:
-#                 is_surrounded = False
-#             else:
-#                 is_surrounded &= dfs(next_row, next_col, visited, player_stone, enclosed_area)
+#             count += dfs(row + dr, col + dc, visited, player_stone)
 #
-#         return is_surrounded
+#         return count
 #
-#     def count_free_intersections(player):
+#     player_scores = [0, 0]  # Player 1 score, Player 2 score
+#
+#     for player in [1, 2]:
 #         visited = [[False for _ in range(len(game_state[0]))] for _ in range(len(game_state))]
-#         free_intersections = 0
-#
 #         for i in range(len(game_state)):
 #             for j in range(len(game_state[0])):
 #                 if game_state[i][j] == player and not visited[i][j]:
-#                     enclosed_area = set()
-#                     if dfs(i, j, visited, player, enclosed_area):
-#                         free_intersections += len(enclosed_area)
+#                     player_scores[player - 1] += dfs(i, j, visited, player)
 #
-#         return free_intersections
-#
-#     player_scores = [count_free_intersections(1), count_free_intersections(2)]
 #     return tuple(player_scores)
 
+def calculate_score(game_state):
+    """
+    Calculates the score of each player. The score is the number of free intersections surrounded by the player's stones. If there's an opponent's stone in that area, the free intersection is not counted.
+    Args:
+        game_state: The matrix representing the current state of the game
 
+    Returns: A tuple containing the score of each player
+
+    """
+    def is_valid(i, j):
+        return 0 <= i < 9 and 0 <= j < 9
+
+    def flood_fill(i, j):
+        stack = [(i, j)]
+        region = {(i, j)}
+        touches_border = False
+        border_touches = set()
+        while stack:
+            i, j = stack.pop()
+            for x, y in [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)]:
+                if is_valid(x, y):
+                    if game_state[x][y] == 0 and (x, y) not in region:
+                        region.add((x, y))
+                        stack.append((x, y))
+                    elif game_state[x][y] != 0:
+                        touches_border = True
+                        border_touches.add((x, y))
+        return region if not (touches_border and len(region) > len(border_touches)) else set()
+
+    def get_surrounding_stones(region):
+        surrounding_stones = set()
+        for i, j in region:
+            for x, y in [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)]:
+                if is_valid(x, y) and game_state[x][y] != 0:
+                    surrounding_stones.add(game_state[x][y])
+        return surrounding_stones
+
+    score = [0, 0]
+    visited = [[False] * 9 for _ in range(9)]
+    for i in range(9):
+        for j in range(9):
+            if game_state[i][j] == 0 and not visited[i][j]:
+                region = flood_fill(i, j)
+                for x, y in region:
+                    visited[x][y] = True
+                surrounding_stones = get_surrounding_stones(region)
+                if len(surrounding_stones) == 1:
+                    player = surrounding_stones.pop()
+                    score[player - 1] += len(region)
+    return tuple(score)
 
 def render_scores(screen, game_state):
     """
