@@ -1,15 +1,16 @@
 import pygame
-import numpy as np
+import random
 
+pygame.init()
 Screen_Width = 1000
 Screen_Height = 1000
-BOARD_SIZE = 850
 
 Black = (0, 0, 0)
 White = (255, 255, 255)
 
 game_state = [[0 for _ in range(9)] for _ in range(9)]
 previous_states = []
+groups = []
 
 # Creating buttons for the main menu
 BTN_SIZE = 62
@@ -29,22 +30,11 @@ initial_point = (231, 214)
 cell_width = 67
 cell_height = 67
 
-def generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height):
-    intersections = []
-    x, y = initial_point
-
-    for i in range(grid_size_x):
-        for j in range(grid_size_y):
-            intersection = (x + i * cell_width, y + j * cell_height)
-            intersections.append(intersection)
-
-    return intersections
-
-specific_intersections = generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height)
-
-pygame.init()
+# Define the size of the screen and clock object
 screen = pygame.display.set_mode((Screen_Width, Screen_Height))
 clock = pygame.time.Clock()
+
+# Load and scale the images
 lobby_image = pygame.image.load('img/lobby.png')
 lobby_image = pygame.transform.scale(lobby_image, (Screen_Width, Screen_Height))
 board_image = pygame.image.load('img/board.png')
@@ -55,12 +45,151 @@ black_piece_image = pygame.image.load('img/black.png')
 black_piece_image = pygame.transform.scale(black_piece_image, (50, 50))
 white_piece_image = pygame.image.load('img/white.png')
 white_piece_image = pygame.transform.scale(white_piece_image, (50, 50))
+black_won=pygame.image.load('img/black_won.png')
+black_won=pygame.transform.scale(black_won, (Screen_Width, Screen_Height))
+white_won=pygame.image.load('img/white_won.png')
+white_won=pygame.transform.scale(white_won, (Screen_Width, Screen_Height))
 
 
-def add_board_state(game_state):
-    previous_states.append(np.array(game_state))
+def compare(game_state1: list[list[int]], game_state2: list[list[int]]) -> bool:
+    """
+    Compares two game states.
+    Args:
+        game_state1:
+        game_state2:
 
-class Button:
+    Returns:
+        True if the game states are the same, False otherwise
+    """
+    for row1, row2 in zip(game_state1, game_state2):
+        for cell1, cell2 in zip(row1, row2):
+            if cell1 != cell2:
+                return False
+    return True
+
+
+def was_seen_before(game_state: list[list[int]]) -> bool:
+    """
+    Checks if the current game state has already been seen before.
+    Args:
+        game_state: the new game state (the one we want to insert)
+    Returns:
+        True if the game state has already been seen before, False otherwise
+    """
+    for prev_state in previous_states:
+        if compare(game_state, prev_state):
+            return True
+    return False
+
+
+def copy_game_state(game_state) -> list[list[int]]:
+    """
+    Creates a deep copy of the game state matrix.
+    Args:
+        game_state: the matrix to be copied
+
+    Returns:
+        game_state_copy: a deep copy of the game state matrix
+    """
+    new_game_state = []
+    for row in game_state:
+        new_game_state.append(row[:])
+    return new_game_state
+
+def generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height) -> list[tuple[int, int]]:
+    """
+    Generates the 81 intersections of the game board.
+    Args:
+        grid_size_x: width of the grid
+        grid_size_y: height of the grid
+        initial_point: coordinates of the top left intersection
+        cell_width: x distance between two adjacent intersections
+        cell_height: y distance between two adjacent intersections
+
+    Returns:
+        intersections: a list of 81 tuples, each tuple representing an intersection
+    """
+    intersections = []
+    x, y = initial_point
+
+    for i in range(grid_size_x):
+        for j in range(grid_size_y):
+            intersection = (x + i * cell_width, y + j * cell_height)
+            intersections.append(intersection)
+
+    return intersections
+
+# Generate the specific 81 intersections
+specific_intersections = generate_intersections(grid_size_x, grid_size_y, initial_point, cell_width, cell_height)
+
+def insert_stone(row, col, player):
+    """
+    Inserts a stone in the game state.
+    Args:
+        row: the row (in the matrix) where the stone is to be inserted
+        col: the column (in the matrix) where the stone is to be inserted
+        player: the player who inserts the stone
+    """
+    game_state[row][col] = player
+
+    new_group = Group(player, [(row, col)])
+
+    adjacent_positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+    for r, c in adjacent_positions:
+        if r < 0 or r >= len(game_state) or c < 0 or c >= len(game_state[0]):
+            continue
+        if game_state[r][c] == player:
+            for group in groups:
+                if (r, c) in group and group.owner == player:
+                    new_group = new_group.get_merged(group)
+                    groups.remove(group)
+                    break
+    groups.append(new_group)
+
+
+def place_black_piece(x, y, intersections, game_state):
+    """
+    Renders a black piece on the board at the closest intersection to the mouse position.
+    Args:
+        x: x coordinate of the mouse position
+        y: y coordinate of the mouse position
+        intersections: list of all 81 intersections
+        game_state: matrix of the current game state
+
+    Returns:
+
+    """
+    closest_intersection = calculate_closest_intersection((x, y), intersections)
+    if closest_intersection:
+        row = intersections.index(closest_intersection) // 9
+        col = intersections.index(closest_intersection) % 9
+        if game_state[row][col] == 0:
+            screen.blit(black_piece_image,
+                        (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
+            insert_stone(row, col, 1)
+            print(f"Player 1 placed a piece at {closest_intersection}")
+        else:
+            print("Invalid position for Player 1")
+    else:
+        print("Invalid position for Player 1")
+
+
+def place_white_piece(x, y, intersections, game_state):
+    closest_intersection = calculate_closest_intersection((x, y), intersections)
+    if closest_intersection:
+        row = intersections.index(closest_intersection) // 9
+        col = intersections.index(closest_intersection) % 9
+        if game_state[row][col] == 0:
+            screen.blit(white_piece_image,
+                        (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
+            insert_stone(row, col, 2)
+            print(f"Player 2 placed a piece at {closest_intersection}")
+        else:
+            print("Invalid position for Player 2")
+    else:
+        print("Invalid position for Player 2")
+
+class PassButton:
     def __init__(self, rect, image_path):
         self.btn_rect = rect
         self.image_path = image_path
@@ -69,6 +198,36 @@ class Button:
         self.is_pressed = False
 
     def process_event(self, event):
+        """
+        Signals if the pass button is clicked.
+        :param event: the event to be processed
+        :return: False if the pass button is not clicked, True otherwise
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
+            mouse_pos = pygame.mouse.get_pos()
+            if self.btn_rect.collidepoint(mouse_pos):
+                self.is_pressed = True
+                return True
+        return False
+
+    def draw(self, screen):
+        screen.blit(self.image, self.btn_rect)
+
+class Button:
+    ''' A button class that can be used to create buttons'''
+    def __init__(self, rect, image_path):
+        self.btn_rect = rect
+        self.image_path = image_path
+        self.image = pygame.image.load(image_path)
+        self.is_active = True
+        self.is_pressed = False
+
+    def process_event(self, event):
+        """
+        Processes the event.
+        Args:
+            event: the event to be processed
+        """
         if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
             if event.button == 1 and self.btn_rect.collidepoint(event.pos):
                 self.is_pressed = True
@@ -92,27 +251,78 @@ for i, button_name in enumerate(button_names):
     buttons.append(button)
 
 
-class PassButton:
-    def __init__(self, rect, image_path):
-        self.btn_rect = rect
-        self.image_path = image_path
-        self.image = pygame.image.load(image_path)
-        self.is_active = True
-        self.is_pressed = False
+class Group:
+    def __init__(self, owner, stones):
+        self.owner = owner
+        self.stones = []
+        for stone in stones:
+            self.stones.append(stone)
 
-    def process_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and self.is_active:
-            mouse_pos = pygame.mouse.get_pos()
-            if self.btn_rect.collidepoint(mouse_pos):
-                self.is_pressed = True
-                return True  # Signal that the pass button is clicked
-        return False
+    def get_merged(self, other_group) -> ['Group']:
+        """
+        Merges the current group with another group.
+        Args:
+            other_group: the group to be merged with the current group
+        Returns:
+            a new group containing all the stones from both groups
+        """
+        new_group = Group(self.owner, self.stones)
+        for stone in other_group.stones:
+            new_group.stones.append(stone)
+        return new_group
 
-    def draw(self, screen):
-        screen.blit(self.image, self.btn_rect)
+    def compute_liberties(self, game_state) -> int:
+        """
+        Computes the number of liberties of the current group in the given game_state.
+        Args:
+            game_state: the game state to be analyzed
+        Returns:
+            the number of liberties of the current group
+        """
+        liberties = 0
+        for stone in self.stones:
+            row, col = stone
+            adjacent_positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+            for r, c in adjacent_positions:
+                if 0 <= r < len(game_state) and 0 <= c < len(game_state[0]):
+                    if r < 0 or r >= len(game_state) or c < 0 or c >= len(game_state[0]):
+                        continue
+                    if game_state[r][c] == 0:
+                        liberties += 1
+        return liberties
 
-def calculate_closest_intersection(mouse_pos, intersections):
-    # Find the closest grid intersection to the mouse position
+    def copy(self):
+        """ Creates a deep copy of the current group
+        Args:
+            None
+        Returns:
+            new_group: a deep copy of the current group
+        """
+        new_stones = self.stones[:]
+        return Group(self.owner, new_stones)
+
+    def __contains__(self, stone):
+        return stone in self.stones
+
+    def __str__(self):
+        return f"{self.owner}\n{self.stones}"
+
+
+def print_groups():
+    for group in groups:
+        print(group)
+    print('*' * 10)
+
+def calculate_closest_intersection(mouse_pos: tuple[int, int], intersections: list[tuple[int, int]]) -> tuple[int, int]:
+    """
+    Calculates the closest intersection to the mouse position.
+    Args:
+        mouse_pos: coordinates of the mouse position
+        intersections: list of all 81 intersections
+
+    Returns:
+        closest_intersection: the closest intersection to the mouse position
+    """
     min_distance = 20
     closest_intersection = None
     for intersection in intersections:
@@ -123,280 +333,299 @@ def calculate_closest_intersection(mouse_pos, intersections):
             closest_intersection = intersection
     return closest_intersection
 
-def render_board(intersections, game_state):
+
+def render_board(intersections: list[tuple[int, int]], game_state: list[list[int]]) -> None:
+    """
+    Renders the current game state.
+    Args:
+        intersections: list of all 81 intersections as tuple of their coordinates
+        game_state: matrix of the current game state
+
+    Returns:
+        None
+    """
+
+    pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
+    pass_button_image = pygame.image.load("img/pass.png")
+    pass_button_image = pygame.transform.scale(pass_button_image, (200, 100))
+    screen.blit(board_image, (0, 0))
+    screen.blit(pass_button_image, pass_button_rect)
     for i, row in enumerate(game_state):
         for j, val in enumerate(row):
             if val == 1:
-                screen.blit(black_piece_image, (intersections[i * 9 + j][0] - PIECE_SIZE // 2, intersections[i * 9 + j][1] - PIECE_SIZE // 2))
+                screen.blit(black_piece_image, (
+                intersections[i * 9 + j][0] - PIECE_SIZE // 2, intersections[i * 9 + j][1] - PIECE_SIZE // 2))
             elif val == 2:
-                screen.blit(white_piece_image, (intersections[i * 9 + j][0] - PIECE_SIZE // 2, intersections[i * 9 + j][1] - PIECE_SIZE // 2))
+                screen.blit(white_piece_image, (
+                intersections[i * 9 + j][0] - PIECE_SIZE // 2, intersections[i * 9 + j][1] - PIECE_SIZE // 2))
 
-class Group:
-    def __init__(self, point, color, liberties):
-        self.color = color
-        if isinstance(point, list):
-            self.points = point
+
+def check_move(x, y, intersections, current_player) -> bool:
+    """
+    Checks if the move is valid.
+    ko rule:
+            if the move we want to make can't be found in the history of states
+    rule of liberty:
+            and the move we want to make does not make the current player lose a group
+    Args:
+        x: x coordinate of the mouse position
+        y: y coordinate of the mouse position
+        intersections: list of all 81 intersections
+        game_state: matrix of the current game state
+        current_player: the player who wants to make the move
+
+    Returns:
+        True if the move is valid, False otherwise
+    """
+    global game_state
+    closest_intersection = calculate_closest_intersection((x, y), intersections)
+    if not closest_intersection:
+        return False
+
+    row = intersections.index(closest_intersection) // 9
+    col = intersections.index(closest_intersection) % 9
+    if game_state[row][col] != 0:
+        print("Invalid position - Already occupied")
+        return False
+
+    global groups
+    # copy the groups array
+    groups_copy = []
+    for group in groups:
+        groups_copy.append(group.copy())
+    game_state_copy = copy_game_state(game_state)
+    insert_stone(row, col, current_player)
+
+    if was_seen_before(game_state):
+        """
+        If the move we want to make can be found in the history of states
+        we restore the previous state and return False
+        """
+        print("Invalid move - Board state repeated")
+        groups = groups_copy
+        game_state = game_state_copy
+        return False
+
+    if not check_liberties(row, col, game_state):
+        """
+        If the move we want to make makes the current player lose a group
+        we restore the previous state and return False
+        """
+        print("Invalid move - No liberties")
+        groups = groups_copy
+        game_state = game_state_copy
+        return False
+    groups = groups_copy
+    game_state = game_state_copy
+    return True
+
+
+def check_liberties(row, col, game_state):
+    """
+    Checks if the move we want to make makes the current player lose a group.
+    :param row: the row (in the matrix) where the stone is to be inserted
+    :param col:  the column (in the matrix) where the stone is to be inserted
+    :param game_state: the matrix representing the current state of the game
+    :return: true if the liberties of the group the stone belongs to is greater than 0, false otherwise
+    """
+    print("Checking liberties")
+    for group in groups:
+        if (row, col) in group:
+            return group.compute_liberties(game_state) > 0
+
+def capture_stones(x, y, intersections):
+    """
+    Captures the stones of the opponent if the move we want to make makes the opponent lose a group.
+    :param x: the x coordinate of the mouse position
+    :param y: the y coordinate of the mouse position
+    :param intersections: the list of all 81 intersections
+    """
+    global game_state
+    global groups
+    row = intersections.index((x, y)) // 9
+    col = intersections.index((x, y)) % 9
+    opponent = 2 if game_state[row][col] == 1 else 1
+    adjacent_positions = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+
+    for r, c in adjacent_positions:
+        if r < 0 or r >= len(game_state) or c < 0 or c >= len(game_state[0]):
+            continue
+        if game_state[r][c] == opponent:
+            for group in groups:
+                if (r, c) in group and group.owner == opponent:
+                    if group.compute_liberties(game_state) == 0:
+                        print(f"Player {opponent} lost a group: {group.stones}")
+                        for stone in group.stones:
+                            stone_row, stone_col = stone
+                            print(f"Removing stone at ({stone_row}, {stone_col})")
+                            game_state[stone_row][stone_col] = 0
+                        groups.remove(group)
+                        print(f"Player {opponent} lost a group")
+                    break
+
+# def calculate_score(game_state):
+#     """
+#     Calculates the score of each player. The score is the number of free intersections
+#     surrounded by the player's stones. If there's an opponent's stone in that area,
+#     the free intersection is not counted.
+#
+#     Args:
+#         game_state: The matrix representing the current state of the game
+#
+#     Returns:
+#         score: A tuple containing the score of each player
+#     """
+#
+#     def is_valid(row, col):
+#         return 0 <= row < len(game_state) and 0 <= col < len(game_state[0])
+#
+#     def dfs(row, col, visited, player_stone):
+#         if not is_valid(row, col) or visited[row][col] or game_state[row][col] != player_stone:
+#             return 0
+#
+#         visited[row][col] = True
+#         count = 1
+#
+#         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+#         for dr, dc in directions:
+#             count += dfs(row + dr, col + dc, visited, player_stone)
+#
+#         return count
+#
+#     player_scores = [0, 0]  # Player 1 score, Player 2 score
+#
+#     for player in [1, 2]:
+#         visited = [[False for _ in range(len(game_state[0]))] for _ in range(len(game_state))]
+#         for i in range(len(game_state)):
+#             for j in range(len(game_state[0])):
+#                 if game_state[i][j] == player and not visited[i][j]:
+#                     player_scores[player - 1] += dfs(i, j, visited, player)
+#
+#     return tuple(player_scores)
+
+def calculate_score(game_state):
+    """
+    Calculates the score of each player. The score is the number of free intersections surrounded by the player's stones. If there's an opponent's stone in that area, the free intersection is not counted.
+    Args:
+        game_state: The matrix representing the current state of the game
+
+    Returns: A tuple containing the score of each player
+
+    """
+    def is_valid(i, j):
+        return 0 <= i < 9 and 0 <= j < 9
+
+    def flood_fill(i, j):
+        stack = [(i, j)]
+        region = {(i, j)}
+        touches_border = False
+        border_touches = set()
+        while stack:
+            i, j = stack.pop()
+            for x, y in [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)]:
+                if is_valid(x, y):
+                    if game_state[x][y] == 0 and (x, y) not in region:
+                        region.add((x, y))
+                        stack.append((x, y))
+                    elif game_state[x][y] != 0:
+                        touches_border = True
+                        border_touches.add((x, y))
+        return region if not (touches_border and len(region) > len(border_touches)) else set()
+
+    def get_surrounding_stones(region):
+        surrounding_stones = set()
+        for i, j in region:
+            for x, y in [(i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)]:
+                if is_valid(x, y) and game_state[x][y] != 0:
+                    surrounding_stones.add(game_state[x][y])
+        return surrounding_stones
+
+    score = [0, 0]
+    visited = [[False] * 9 for _ in range(9)]
+    for i in range(9):
+        for j in range(9):
+            if game_state[i][j] == 0 and not visited[i][j]:
+                region = flood_fill(i, j)
+                for x, y in region:
+                    visited[x][y] = True
+                surrounding_stones = get_surrounding_stones(region)
+                if len(surrounding_stones) == 1:
+                    player = surrounding_stones.pop()
+                    score[player - 1] += len(region)
+    return tuple(score)
+
+def render_scores(screen, game_state):
+    """
+    Renders the scores for both players on the screen.
+
+    Args:
+        screen: Pygame screen object to render on
+        font: Pygame font object to render text
+        game_state: The matrix representing the current state of the game
+
+    Returns:
+        None
+    """
+    font=pygame.font.Font('freesansbold.ttf', 32)
+    black_score, white_score = calculate_score(game_state)
+    white_text = font.render(f"{white_score}", True, (255, 255, 255))
+    black_text = font.render(f"{black_score}", True, (0, 0, 0))
+    screen.blit(white_text, (95, 685))
+    screen.blit(black_text, (900, 685))
+
+is_PVP=False
+is_PVAI=False
+def start_PVP():
+    global is_PVP
+    global is_PVAI
+    is_PVP=True
+    is_PVAI=False
+
+def start_PVAI():
+    global is_PVP
+    global is_PVAI
+    is_PVP=False
+    is_PVAI=True
+
+is_ai_turn = False
+
+def handle_AI_move(current_player):
+    """
+    The AI makes a move randomly, but according to the rules. There's a list of moves that are valid for the AI and it choses a random one from there.
+
+    Args:
+        current_player: the current player
+
+    Returns:
+        None
+
+    """
+    available_moves = []  # Store available moves
+
+    if current_player == 2:
+        # Generate a list of available moves (valid moves for AI)
+        for intersection in specific_intersections:
+            x, y = intersection
+            if check_move(x, y, specific_intersections, 2):
+                available_moves.append((x, y))
+
+        if available_moves:
+            # Randomly select a move from available valid moves
+            random_move = random.choice(available_moves)
+            x, y = random_move
+            # Make the AI move
+            place_white_piece(x, y, specific_intersections, game_state)
         else:
-            self.points = [point]
-        self.liberties = liberties
-
-    @property
-    def num_liberty(self):
-        return len(self.liberties)
-
-    def add_stones(self, pointlist):
-        self.points.extend(pointlist)
-
-    def remove_liberty(self, point):
-        self.liberties.remove(point)
-
-    def __str__(self):
-        return '%s - stones: [%s]; liberties: [%s]' % (
-            self.color,
-            ', '.join([str(point) for point in self.points]),
-            ', '.join([str(point) for point in self.liberties])
-        )
-
-    def __repr__(self):
-        return str(self)
-
-def neighbors(point):
-    neighboring = [(point[0] - 1, point[1]),
-                   (point[0] + 1, point[1]),
-                   (point[0], point[1] - 1),
-                   (point[0], point[1] + 1)]
-    return [point for point in neighboring if 0 < point[0] < BOARD_SIZE and 0 < point[1] < BOARD_SIZE]
-
-
-def cal_liberty(points, board):
-    liberties = [point for point in neighbors(points)
-                 if not board.stonedict.get_groups('BLACK', point) and not board.stonedict.get_groups('WHITE', point)]
-    return set(liberties)
-class PointDict:
-    def __init__(self):
-        self.d = {'BLACK': {}, 'WHITE': {}}
-
-    def get_groups(self, color, point):
-        if point not in self.d[color]:
-            self.d[color][point] = []
-        return self.d[color][point]
-
-    def set_groups(self, color, point, groups):
-        self.d[color][point] = groups
-
-    def remove_point(self, color, point):
-        if point in self.d[color]:
-            del self.d[color][point]
-
-    def get_items(self, color):
-        return self.d[color].items()
-
-class CheckMove(object):
-    def __init__(self, next_color=1):
-        self.winner = None
-        self.next = next_color
-        self.legal_actions = []
-        self.end_by_no_legal_actions = False
-        self.counter_move = 0
-        self.libertydict = PointDict()
-        self.stonedict = PointDict()
-        self.groups = {1: [], 2: []}
-        self.endangered_groups = []
-        self.removed_groups = []
-
-    def create_group(self, point, color):
-        ll = []
-        group = Group(point, color, ll)
-        self.groups[color].append(group)
-        if len(group.liberties) <= 1:
-            self.endangered_groups.append(group)
-        if color in self.stonedict:
-            if point in self.stonedict[color]:
-                self.stonedict[color][point].append(group)
-            else:
-                self.stonedict[color][point] = [group]
-        else:
-            self.stonedict[color] = {point: [group]}
-        for liberty in group.liberties:
-            if color in self.libertydict:
-                if liberty in self.libertydict[color]:
-                    self.libertydict[color][liberty].append(group)
-                else:
-                    self.libertydict[color][liberty] = [group]
-            else:
-                self.libertydict[color] = {liberty: [group]}
-        return group
-
-    def remove_group(self, group):
-        color = group.color
-        self.groups[color].remove(group)
-        if group in self.endangered_groups:
-            self.endangered_groups.remove(group)
-        for point in group.points:
-            self.get_groups(color, point).remove(group)
-        for liberty in group.liberties:
-            self.get_groups(color, liberty).remove(group)
-    def get_groups(self, color, point):
-        return [group for group in self.stonedict[color][point] if point in group.points]
-    def merge_groups(self, group_list, point):
-
-        color = group_list[0].color
-        new_group = Group(point, color, set())
-
-        all_liberties = set()
-        for group in group_list:
-            new_group.add_stones(group.points)
-            all_liberties |= group.liberties
-            self.remove_group(group)
-
-        new_group.add_stones([point])
-        all_liberties |= cal_liberty(point, self)
-
-        new_group.liberties = all_liberties
-
-        for p in new_group.points:
-            self.get_groups(color, p).append(new_group)
-
-        for liberty in all_liberties:
-            belonging_groups = self.get_groups(color, liberty)
-            if new_group not in belonging_groups:
-                belonging_groups.append(new_group)
-        return new_group
-
-    def _get_legal_actions(self):
-        if self.winner:
-            return []
-
-        endangered_lbt_self = set()
-        endangered_lbt_opponent = set()
-        for group in self.endangered_groups:
-            if group.color == self.next:
-                endangered_lbt_self |= group.liberties
-            else:
-                endangered_lbt_opponent |= group.liberties
-
-        if endangered_lbt_opponent:
-            return list(endangered_lbt_opponent)
-
-        legal_actions = []
-        if endangered_lbt_self:
-            if len(endangered_lbt_self) > 1:
-                legal_actions = list(endangered_lbt_self)
-            elif len(endangered_lbt_self) == 1:
-                legal_actions = list(endangered_lbt_self)
-        else:
-            opponent = None  # Initialize opponent
-            if self.next == 'BLACK':
-                opponent = 'WHITE'
-            elif self.next == 'WHITE':
-                opponent = 'BLACK'
-            legal_actions = set()
-            if opponent:
-                for group in self.groups[opponent]:
-                    legal_actions |= group.liberties
-            legal_actions = list(legal_actions)
-
-        legal_actions_filtered = []
-        for action in legal_actions:
-            if len(cal_liberty(action, self)) > 0:
-                legal_actions_filtered.append(action)
-            else:
-                connected_self_groups = [
-                    self.get_groups(self.next, p)[0]
-                    for p in neighbors(action)
-                    if self.get_groups(self.next, p)
-                ]
-                for self_group in connected_self_groups:
-                    if len(self_group.liberties) > 1:
-                        legal_actions_filtered.append(action)
-                        break
-
-        return legal_actions_filtered
-
-    def shorten_liberty_for_groups(self, point, color):
-        opponent = 'WHITE' if color == 'BLACK' else 'BLACK'
-
-        for group in self.libertydict.get_groups(opponent, point):
-            group.remove_liberty(point)
-            if group.color != color:
-                if len(group.liberties) == 0:
-                    self.removed_groups.append(group)
-                    self.winner = opponent
-                elif len(group.liberties) == 1:
-                    self.endangered_groups.append(group)
-
-        self.libertydict.remove_point(opponent, point)
-
-        if not self.winner:
-            for group in self.libertydict.get_groups(color, point):
-                group.remove_liberty(point)
-                if group.color != color:
-                    if len(group.liberties) == 0:
-                        self.removed_groups.append(group)
-                        self.winner = opponent
-                    elif len(group.liberties) == 1:
-                        self.endangered_groups.append(group)
-        self.libertydict.remove_point(color, point)
-
-    def place_piece(self, closest_intersection, game_state, player):
-        if closest_intersection:
-            row,col=closest_intersection
-            if game_state[row][col] == 0:
-                if player == 1:
-                    screen.blit(black_piece_image,
-                                (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
-                    game_state[row][col] = 1  # Set 1 for black piece
-                    print(f"Player 1 placed a piece at {closest_intersection}")
-                else:
-                    screen.blit(white_piece_image,
-                                (closest_intersection[0] - PIECE_SIZE // 2, closest_intersection[1] - PIECE_SIZE // 2))
-                    game_state[row][col] = 2  # Set 2 for white piece
-                    print(f"Player 2 placed a piece at {closest_intersection}")
-                add_board_state(game_state)  # Add the current game state to previous_states
-            else:
-                if player == 1:
-                    print("Invalid position for Player 1")
-                else:
-                    print("Invalid position for Player 2")
-        else:
-            if player == 1:
-                print("Invalid position for Player 1")
-            else:
-                print("Invalid position for Player 2")
-
-        self=game_state
-        point = closest_intersection  # modify as needed
-        check_legal = False  # modify as needed
-
-        if check_legal and point not in self.legal_actions:
-            print('Error: illegal move, try again.')
-            return False
-
-        self_belonging_groups = self.libertydict.get_groups(self.next, point).copy()
-        self.shorten_liberty_for_groups(point, self.next)
-
-        if self.winner:
-            self.next = 'WHITE' if self.next == 'BLACK' else 'BLACK'
-            return True
-
-        new_group = self.create_or_merge_group(self_belonging_groups, point)
-        self.update_endangered_groups(new_group)
-
-        self.next = 'WHITE' if self.next == 'BLACK' else 'BLACK'
-        self.update_legal_actions()
-
-        str_groups = [str(group) for group in self.groups['BLACK']] + [str(group) for group in self.groups['WHITE']]
-        print('Next: %s\n%s' % (self.next, '\n'.join(str_groups)))
-
-        return len(self.stonedict.get_groups('BLACK', point)) > 0 or len(self.stonedict.get_groups('WHITE', point)) > 0
-
+            print("AI passed")
+            current_player = 1
 
 def main():
+
+    global is_ai_turn
     pass_button_rect = pygame.Rect(X_OFFSET, Y_OFFSET + num_buttons * button_height + 100, 200, 100)
     pass_button_image = pygame.image.load("img/pass.png")
     pass_button_image = pygame.transform.scale(pass_button_image, (200, 100))
     pass_button = PassButton(pass_button_rect, "img/pass.png")
-    game_logic = CheckMove()
     is_game_over = False
     current_player = 1
     background = lobby_image
@@ -412,19 +641,26 @@ def main():
                 consecutive_passes[current_player - 1] += 1
                 print(f"Current player {current_player} passed")
 
+                # Check if both players passed consecutively
                 if consecutive_passes[0] >= 2 or consecutive_passes[1] >= 2:
-                    is_game_over = True
-                    background = lobby_image
-                    print("Both players passed consecutively twice. Game over!")
+                    black_score, white_score = calculate_score(game_state)
+                    if black_score > white_score:
+                        background = black_won
+                        print("Black player won!")
+                    else:
+                        background = white_won
+                        print("White player won!")
 
+                    print("Game over!")
+                    screen.blit(background, (0, 0))
                 if consecutive_passes[0] < 2 and consecutive_passes[1] < 2:
                     if current_player == 1:
                         current_player = 2
                     else:
                         current_player = 1
                     print(f"Current player switched to {current_player}")
-                # if game_logic.place_piece(x, y, specific_intersections, game_state, current_player):
-                #     consecutive_passes = [0, 0]
+                if check_move(x, y, specific_intersections, current_player):
+                    consecutive_passes = [0, 0]
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
@@ -432,12 +668,17 @@ def main():
                 if background == lobby_image:
                     for button in buttons:
                         if button.btn_rect.collidepoint(mouse_pos) and button.is_active:
-                            if button.image_path in ["img/pvai.png", "img/pvp.png"]:
-                                background = board_image  # Switch background to game board
+                            if button.image_path in "img/pvai.png":
+                                background = board_image
                                 screen.blit(background, (0, 0))
+                                start_PVAI()
+                            elif button.image_path in "img/pvp.png":
+                                background = board_image
+                                screen.blit(background, (0, 0))
+                                start_PVP()
 
                             elif button.image_path == "img/rules.png":
-                                background = rules_go_image  # Switch background to rules screen
+                                background = rules_go_image
                                 screen.blit(background, (0, 0))
 
                             elif button.image_path == "img/quit.png":
@@ -446,34 +687,62 @@ def main():
                                 quit()
                 elif background == rules_go_image:
                     background = lobby_image
-                elif background == board_image:
-                    if event.type == pygame.MOUSEBUTTONDOWN:
-                        mouse_pos = pygame.mouse.get_pos()
-                        closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
-                        if closest_intersection:
-                            matrix_row = specific_intersections.index(closest_intersection) // 9
-                            matrix_col = specific_intersections.index(closest_intersection) % 9
-                            matrix_pos = (matrix_row, matrix_col)
-                            valid_move = game_logic.place_piece(matrix_pos, game_state, current_player)
-                            if valid_move:
-                                render_board(specific_intersections, game_state)
-                                if current_player == 1:
-                                    current_player = 2
-                                else:
-                                    current_player = 1
-                                render_board(specific_intersections, game_state)
+                if is_PVP:
+                    screen.blit(pass_button_image, pass_button_rect)
+                    pygame.display.flip()
+                    closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
+                    if closest_intersection:
+                        x, y = closest_intersection
+                        valid_move = check_move(x, y, specific_intersections, current_player)
+                        if valid_move:
+                            if current_player == 1:
+                                place_black_piece(x, y, specific_intersections, game_state)
+                                current_player = 2
+                            else:
+                                place_white_piece(x, y, specific_intersections, game_state)
+                                current_player = 1
+                            capture_stones(x, y, specific_intersections)
+                            print_groups()
+                            previous_states.append(copy_game_state(game_state))
+                            render_board(specific_intersections, game_state)
+                            render_scores(screen, game_state)
+                elif is_PVAI:
+                    screen.blit(pass_button_image, pass_button_rect)
+                    pygame.display.flip()
+                    closest_intersection = calculate_closest_intersection(mouse_pos, specific_intersections)
+                    if closest_intersection:
+                        x, y = closest_intersection
+                        valid_move = check_move(x, y, specific_intersections, current_player)
+                        if valid_move:
+                            if current_player == 1:
+                                place_black_piece(x, y, specific_intersections, game_state)
+                                current_player = 2
+                                is_ai_turn = True
+                            # AI move
+                            if is_ai_turn:
+                                print("AI move")
+                                handle_AI_move(current_player)
+                                is_ai_turn = False
+                                current_player = 1
+
+                            capture_stones(x, y, specific_intersections)
+                            print_groups()
+                            previous_states.append(copy_game_state(game_state))
+                            render_board(specific_intersections, game_state)
+                            render_scores(screen, game_state)
+
+
         # Display and handle button clicks only in the lobby
         if background == lobby_image:
             screen.blit(background, (0, 0))
             for button in buttons:
                 button.draw()
-        elif background == board_image:
-            pass_button.draw(screen)
 
         pygame.display.flip()
         clock.tick(60)
 
     pygame.quit()
+
 
 if __name__ == '__main__':
     main()
